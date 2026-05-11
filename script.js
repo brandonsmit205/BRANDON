@@ -3,6 +3,7 @@ const siteHeader = document.querySelector(".site-header");
 const navToggle = document.querySelector(".nav-toggle");
 const navMenu = document.querySelector(".nav-menu");
 const navLinks = [...document.querySelectorAll(".nav-menu a")];
+const internalAnchorLinks = [...document.querySelectorAll('a[href^="#"]')];
 const sectionLinks = navLinks.filter((link) => link.getAttribute("href")?.startsWith("#"));
 const scrollTopButton = document.querySelector(".scroll-top");
 const counters = document.querySelectorAll(".counter");
@@ -21,6 +22,52 @@ const showcaseCard = document.querySelector(".showcase-card");
 const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
 
 const formatCounterValue = (value) => Math.round(value);
+const navbar = document.querySelector(".navbar");
+
+const updateScrollOffset = () => {
+  const navHeight = Math.ceil(navbar?.getBoundingClientRect().height || 0);
+  const extraOffset = window.innerWidth <= 640 ? 18 : 24;
+  const totalOffset = navHeight + extraOffset;
+  document.documentElement.style.setProperty("--scroll-offset", `${totalOffset}px`);
+  return totalOffset;
+};
+
+const closeNavMenu = () => {
+  navMenu?.classList.remove("is-open");
+  navToggle?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("menu-open");
+};
+
+const scrollToTarget = (hash, shouldUpdateHistory = true) => {
+  if (!hash || hash === "#") {
+    return;
+  }
+
+  if (hash === "#top") {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (shouldUpdateHistory) {
+      history.pushState(null, "", "#top");
+    }
+    return;
+  }
+
+  const target = document.querySelector(hash);
+  if (!target) {
+    return;
+  }
+
+  const offset = updateScrollOffset();
+  const targetTop = target.getBoundingClientRect().top + window.scrollY - offset;
+
+  window.scrollTo({
+    top: Math.max(targetTop, 0),
+    behavior: "smooth",
+  });
+
+  if (shouldUpdateHistory) {
+    history.pushState(null, "", hash);
+  }
+};
 
 const animateCounter = (counter) => {
   const target = Number(counter.dataset.target || 0);
@@ -114,20 +161,70 @@ const handleScroll = () => {
 };
 
 handleScroll();
+updateScrollOffset();
 updateShowcaseRestingTransform();
 
-window.addEventListener("resize", updateShowcaseRestingTransform);
+window.addEventListener("resize", () => {
+  updateScrollOffset();
+  updateShowcaseRestingTransform();
+});
 window.addEventListener("scroll", handleScroll, { passive: true });
 
 navToggle?.addEventListener("click", () => {
   const isOpen = navMenu.classList.toggle("is-open");
   navToggle.setAttribute("aria-expanded", String(isOpen));
+  document.body.classList.toggle("menu-open", isOpen);
+});
+
+document.addEventListener("click", (event) => {
+  if (!navMenu?.classList.contains("is-open")) {
+    return;
+  }
+
+  const clickTarget = event.target;
+  if (!(clickTarget instanceof Node)) {
+    return;
+  }
+
+  if (navMenu.contains(clickTarget) || navToggle?.contains(clickTarget)) {
+    return;
+  }
+
+  closeNavMenu();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeNavMenu();
+  }
 });
 
 navLinks.forEach((link) => {
   link.addEventListener("click", () => {
-    navMenu.classList.remove("is-open");
-    navToggle?.setAttribute("aria-expanded", "false");
+    if (!link.getAttribute("href")?.startsWith("#")) {
+      closeNavMenu();
+    }
+  });
+});
+
+internalAnchorLinks.forEach((link) => {
+  link.addEventListener("click", (event) => {
+    const hash = link.getAttribute("href");
+    if (!hash || hash === "#") {
+      return;
+    }
+
+    const target = hash === "#top" ? document.getElementById("top") : document.querySelector(hash);
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    closeNavMenu();
+
+    window.requestAnimationFrame(() => {
+      scrollToTarget(hash);
+    });
   });
 });
 
@@ -261,6 +358,12 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", hideLoader, { once: true });
 } else {
   hideLoader();
+}
+
+if (window.location.hash) {
+  window.requestAnimationFrame(() => {
+    scrollToTarget(window.location.hash, false);
+  });
 }
 
 if (yearEl) {
